@@ -1,4 +1,4 @@
-const productsArray = [
+const productCatalog = [
     {
         id: 1,
         name: "PC Armada Gamer Extreme Ryzen 5 5600 /Cooler /RTX 4070 Super /B550M /32GB /1TB /Gabinete /Fuente 750W 80P",
@@ -89,6 +89,7 @@ const initializeProducts = (products) => {
         let addToCartButton = document.createElement("button")
         addToCartButton.className = "add-to-cart-btn";
         addToCartButton.textContent = "Añadir al carrito";
+        addToCartButton.dataset.productId = product.id;
         productContent.appendChild(productImg);
         productContent.appendChild(productTitle);
         productContent.appendChild(productPrice);
@@ -96,15 +97,17 @@ const initializeProducts = (products) => {
         article.appendChild(addToCartButton);
         productsContainer.appendChild(article);
     });
+    setupProductsEvents();
 };
 
 const showCart = () => {
+    const cartList = document.getElementById("cart-list");
+    cartList.innerHTML = "";
     const storedProducts = getStoredProducts();
     if (!storedProducts) return;
     const cartProducts = JSON.parse(storedProducts);
     if (!cartProducts.length) return;
 
-    const cartList = document.getElementById("cart-list");
     cartProducts.forEach(cartProduct => {
         let cartProductItem = document.createElement("li");
         let article = document.createElement("article");
@@ -114,7 +117,7 @@ const showCart = () => {
         cartProductImg.className = "cart-product-img";
         let cartProductTitle = document.createElement("span");
         cartProductTitle.className = "product-title";
-        cartProductTitle.textContent = `${cartProduct.name}`;
+        cartProductTitle.innerHTML = `<strong>${cartProduct.count}</strong> x ${cartProduct.name}`;
         let cartProductPrice = document.createElement("p");
         cartProductPrice.textContent = `$${cartProduct.price}`;
         cartProductPrice.className = "product-price";
@@ -124,6 +127,7 @@ const showCart = () => {
         // Botón para sumar item
         let addItemButton = document.createElement("button");
         addItemButton.className = "btn-add";
+        addItemButton.dataset.productId = cartProduct.id;
         let addSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         addSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
         addSvg.setAttribute("width", "24");
@@ -138,6 +142,7 @@ const showCart = () => {
         // Botón de remover item
         let removeItemButton = document.createElement("button");
         removeItemButton.className = "btn-remove";
+        removeItemButton.dataset.productId = cartProduct.id;
         let removeSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         removeSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
         removeSvg.setAttribute("width", "24");
@@ -165,20 +170,38 @@ const showCart = () => {
         cartProductItem.appendChild(article);
         cartList.appendChild(cartProductItem);
     });
+    setupCartEvents();
 };
 
 const getStoredProducts = () => {
     return localStorage.getItem("cart");
 };
 
-const addToCart = (product) => {
+const addToCart = (id) => {
     const storedProducts = getStoredProducts();
     let cartProductsArray = [];
+    let product = findProductById(id, productCatalog);
+    if (!product) return;
+    let newCartProduct;
     if (storedProducts) {
+        // Si hay productos actualmente en el carrito
         let cartProducts = JSON.parse(storedProducts);
         cartProductsArray = cartProducts;
+        let existingProductInCart = findProductById(id, cartProductsArray);
+        if (existingProductInCart) {
+            // Si ya hay un item de este producto
+            existingProductInCart.count += 1;
+            localStorage.setItem('cart', JSON.stringify(cartProductsArray));
+            return;
+        }
     }
-    let newCartProducts = [...cartProductsArray, product];
+    // Si no hay productos en el carrito y este sera el primero o 
+    // no hay un item de este producto 
+    newCartProduct = {
+        ...product, 
+        count: 1,
+    }
+    let newCartProducts = [...cartProductsArray, newCartProduct];
     localStorage.setItem('cart', JSON.stringify(newCartProducts));
 };
 
@@ -187,15 +210,85 @@ const removeFromCart = (id) => {
     if (!storedProducts) return;
     let storedProductsArray = JSON.parse(storedProducts);
     if (!storedProductsArray.length) return;
-    let newCartProducts = storedProductsArray.filter((product) => product.id === id);
+    let foundProductInCart = findProductById(id, storedProductsArray);
+    if (!foundProductInCart) return;
+
+    let productQuantity = foundProductInCart.count;
+    if (productQuantity > 1) {
+        // Si hay mas de un item del producto bajamos la cantidad
+        foundProductInCart.count -= 1;
+        localStorage.setItem('cart', JSON.stringify(storedProductsArray));
+        return;
+    }
+
+    // Si solo hay uno lo quitamos
+    let newCartProducts = storedProductsArray.filter((product) => product.id !== id);
     localStorage.setItem('cart', JSON.stringify(newCartProducts));
 };
 
-const findProduct = (id) => {
+const findProductById = (id, productsArray) => {
     return productsArray.find((product) => product.id === id);
 };
 
-document.addEventListener("DOMContentLoaded", () =>{
-    initializeProducts(productsArray);
+const checkProductStock = (id) => {
+    let product = findProductById(id, productCatalog);
+    if (!product) return;
+    if (product.stock <= 0) return;
+    const storedProducts = getStoredProducts();
+    if (!storedProducts) return;
+    let cartProductsArray = JSON.parse(storedProducts);
+    if (!cartProductsArray.length) return;
+    let existingProductInCart = findProductById(id, cartProductsArray);
+    if (!existingProductInCart) return;
+    let stock = (existingProductInCart.count < product.stock);
+    return stock;
+};
+
+const setupProductsEvents = () => {
+    let addToCartButtons = document.querySelectorAll(".add-to-cart-btn");
+    if (addToCartButtons?.length) {
+        // Boton de añadir al carrito
+        addToCartButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                let btnProductId = btn.dataset.productId;
+                if (!btnProductId) return;
+                addToCart(Number(btnProductId));
+                showCart();
+                btn.disabled = true;
+            });
+        });
+    }
+};
+
+const setupCartEvents = () => {
+    let addItemButtons = document.querySelectorAll(".btn-add");
+    if (addItemButtons?.length) {
+        // Boton de añadir item
+        addItemButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                let btnProductId = btn.dataset.productId;
+                if (!btnProductId) return;
+                addToCart(Number(btnProductId));
+                showCart();
+            });
+        });
+    };
+
+    let removeItemButtons = document.querySelectorAll(".btn-remove");
+    if (removeItemButtons?.length) {
+        // Boton de quitar item
+        removeItemButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                let btnProductId = btn.dataset.productId;
+                if (!btnProductId) return;
+                removeFromCart(Number(btnProductId));
+                showCart();
+            });
+        });
+    };
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+    initializeProducts(productCatalog);
     showCart();
 });
