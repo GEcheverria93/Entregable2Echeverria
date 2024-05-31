@@ -278,6 +278,50 @@ const clearCart = () => {
     showProductList(productCatalog);
 };
 
+const getCurrentDate = () => {
+    const date = new Date();
+
+    // Ajusta la fecha a la zona horaria de Argentina (UTC-3)
+    const offset = -3 * 60;
+    const argDate = new Date(date.getTime() + offset * 60 * 1000);
+
+    // Función para formatear el número con dos dígitos
+    const pad = (number) => number.toString().padStart(2, '0');
+
+    // Obtén los componentes de la fecha y hora
+    const day = pad(argDate.getUTCDate());
+    const month = pad(argDate.getUTCMonth() + 1); // Los meses son 0-11
+    const year = argDate.getUTCFullYear();
+    const hours = pad(argDate.getUTCHours());
+    const minutes = pad(argDate.getUTCMinutes());
+    const seconds = pad(argDate.getUTCSeconds());
+
+    // Forma la fecha en el formato deseado
+    const formattedDate = `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+    return formattedDate;
+};
+
+const savePurchaseInHistory = (products, totalPrice) => {
+    if (!products.length) return;
+
+    let currentHistory = localStorage.getItem("history");
+    let historyUpdated = [];
+
+    if (currentHistory) {
+        historyUpdated = JSON.parse(currentHistory);
+    }
+
+    let newPurchaseData = {
+        dateTime: getCurrentDate(),
+        products: products,
+        price: totalPrice,
+    };
+
+    historyUpdated.push(newPurchaseData);
+
+    localStorage.setItem('history', JSON.stringify(historyUpdated));
+};
+
 // Función para realizar la simulación de la compra
 const performPurchase = () => {
     const storedProducts = getStoredProducts();
@@ -287,6 +331,7 @@ const performPurchase = () => {
 
     let totalPrice = checkTotalPrice();
 
+    savePurchaseInHistory(cartProducts, totalPrice)
     // Se muestra una alerta con un mensaje para indicar que se realizó con éxito
     alert(`Has realizado una compra con un valor de $${totalPrice}, ¡Felicitaciones!`);
     clearCart();
